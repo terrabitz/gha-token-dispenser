@@ -73,6 +73,8 @@ func run(args Args) error {
 
 		defer r.Body.Close()
 
+		w.Header().Add("Content-Type", "application/json")
+
 		token, err := jwt.Parse(string(b), func(token *jwt.Token) (interface{}, error) {
 			kid := token.Header["kid"].(string)
 			key, ok := githubPublicKeys[kid]
@@ -85,22 +87,26 @@ func run(args Args) error {
 
 		if err != nil {
 			fmt.Printf("could not parse JWT: %v\n", err)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		if !token.Valid {
 			fmt.Println("key is not valid!")
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		iss, err := token.Claims.GetIssuer()
 		if err != nil {
 			fmt.Printf("couldn't get issuer: %v\n", err)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		if iss != "https://token.actions.githubusercontent.com" {
 			fmt.Println("issuer isn't GitHub Actions")
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
@@ -108,17 +114,20 @@ func run(args Args) error {
 		sub, err := token.Claims.GetSubject()
 		if err != nil {
 			fmt.Printf("couldn't get subject: %v\n", err)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		if sub != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
 			fmt.Println("repo must be main branch of terrabitz/goreleaser-test")
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
 		installToken, err := ghClient.GetInstallationToken()
 		if err != nil {
 			fmt.Printf("couldn't get install token: %v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
