@@ -2,18 +2,15 @@ package main
 
 import (
 	"context"
-	"crypto/rsa"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/go-github/v53/github"
 	"github.com/joho/godotenv"
 	cli "github.com/urfave/cli/v2"
@@ -61,7 +58,12 @@ func run(args Args) error {
 		return fmt.Errorf("couldn't create GitHub client: %w", err)
 	}
 
-	githubPublicKeys := GetGitHubPublicKeys()
+	provider, err := oidc.NewProvider(context.TODO(), "https://token.actions.githubusercontent.com")
+	if err != nil {
+		return fmt.Errorf("couldn't create OIDC provider: %w", err)
+	}
+
+	verifier := provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
 
 	var mux http.ServeMux
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -76,50 +78,27 @@ func run(args Args) error {
 
 		defer r.Body.Close()
 
-		token, err := jwt.ParseWithClaims(req.Token, &GitHubClaims{}, func(token *jwt.Token) (interface{}, error) {
-			kid := token.Header["kid"].(string)
-			key, ok := githubPublicKeys[kid]
-			if !ok {
-				return nil, fmt.Errorf("couldn't find public key corresponding to KID '%s", kid)
-			}
-
-			return key, nil
-		}, jwt.WithValidMethods([]string{"RS256"}))
-
+		idToken, err := verifier.Verify(r.Context(), req.Token)
 		if err != nil {
-			fmt.Printf("could not parse JWT: %v\n", err)
+			fmt.Printf("invalid token: %v\n", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		if !token.Valid {
-			fmt.Println("key is not valid!")
+		var claims GitHubClaims
+		if err := idToken.Claims(&claims); err != nil {
+			fmt.Printf("could not extract GitHub custom claims: %v\n", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		claims := token.Claims.(*GitHubClaims)
-		iss, err := claims.GetIssuer()
-		if err != nil {
-			fmt.Printf("unable to get issuer: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if iss != "https://token.actions.githubusercontent.com" {
+		if idToken.Issuer != "https://token.actions.githubusercontent.com" {
 			fmt.Println("issuer isn't GitHub Actions")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		sub, err := claims.GetSubject()
-		if err != nil {
-			fmt.Printf("unable to get subject: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if sub != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
+		if idToken.Subject != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
 			fmt.Println("repo must be main branch of terrabitz/goreleaser-test")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -165,41 +144,6 @@ type GetTokenRequest struct {
 	Token string `json:"token,omitempty"`
 }
 
-func GetGitHubPublicKeys() map[string](*rsa.PublicKey) {
-	rsakeys := make(map[string]*rsa.PublicKey)
-
-	uri := "https://token.actions.githubusercontent.com/.well-known/jwks"
-	resp, _ := http.Get(uri)
-
-	var body GitHubJWKs
-	json.NewDecoder(resp.Body).Decode(&body)
-
-	for _, bodykey := range body.Keys {
-		key := bodykey
-		kid := key.Kid
-		rsakey := new(rsa.PublicKey)
-		number, _ := base64.RawURLEncoding.DecodeString(key.N)
-		rsakey.N = new(big.Int).SetBytes(number)
-		rsakey.E = 65537
-		rsakeys[kid] = rsakey
-	}
-
-	return rsakeys
-}
-
-type GitHubJWKs struct {
-	Keys []struct {
-		N   string   `json:"n"`
-		Kty string   `json:"kty"`
-		Kid string   `json:"kid"`
-		Alg string   `json:"alg"`
-		E   string   `json:"e"`
-		Use string   `json:"use"`
-		X5C []string `json:"x5c"`
-		X5T string   `json:"x5t"`
-	} `json:"keys"`
-}
-
 type GitHubAppClient struct {
 	*github.Client
 }
@@ -231,7 +175,6 @@ func (ghClient *GitHubAppClient) GetInstallationToken(orgAndRepo string) (string
 }
 
 type GitHubClaims struct {
-	jwt.RegisteredClaims
 	Environment          string `json:"environment"`
 	Ref                  string `json:"ref"`
 	Sha                  string `json:"sha"`
