@@ -6,11 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -65,17 +65,18 @@ func run(args Args) error {
 
 	var mux http.ServeMux
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		b, err := io.ReadAll(r.Body)
-		if err != nil {
-			fmt.Printf("error reading body: %v\n", err)
+		w.Header().Add("Content-Type", "application/json")
+
+		var req GetTokenRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			fmt.Printf("couldn't decode request: %v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		defer r.Body.Close()
 
-		w.Header().Add("Content-Type", "application/json")
-
-		token, err := jwt.Parse(string(b), func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(req.Token, func(token *jwt.Token) (interface{}, error) {
 			kid := token.Header["kid"].(string)
 			key, ok := githubPublicKeys[kid]
 			if !ok {
@@ -124,7 +125,7 @@ func run(args Args) error {
 			return
 		}
 
-		installToken, err := ghClient.GetInstallationToken()
+		installToken, err := ghClient.GetInstallationToken(req.Repo)
 		if err != nil {
 			fmt.Printf("couldn't get install token: %v\n", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -151,6 +152,11 @@ func run(args Args) error {
 func toJson(v any) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
+}
+
+type GetTokenRequest struct {
+	Repo  string `json:"repo,omitempty"`
+	Token string `json:"token,omitempty"`
 }
 
 func GetGitHubPublicKeys() map[string](*rsa.PublicKey) {
@@ -202,8 +208,10 @@ func NewGitHubAppClient(args Args) (*GitHubAppClient, error) {
 	return &GitHubAppClient{client}, nil
 }
 
-func (ghClient *GitHubAppClient) GetInstallationToken() (string, error) {
-	install, _, err := ghClient.Apps.FindRepositoryInstallation(context.TODO(), "terrabitz", "goreleaser-test")
+func (ghClient *GitHubAppClient) GetInstallationToken(orgAndRepo string) (string, error) {
+	parts := strings.SplitN(orgAndRepo, "/", 2)
+	org, repo := parts[0], parts[1]
+	install, _, err := ghClient.Apps.FindRepositoryInstallation(context.TODO(), org, repo)
 	if err != nil {
 		return "", fmt.Errorf("couldn't find repo installation: %w", err)
 	}
