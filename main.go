@@ -194,13 +194,6 @@ func NewGitHubAppClient(args Args) (*GitHubAppClient, error) {
 }
 
 func (ghClient *GitHubAppClient) GetInstallationToken() (string, error) {
-	// installations, _, err := ghClient.Apps.ListInstallations(context.TODO(), &github.ListOptions{})
-	// if err != nil {
-	// 	return "", fmt.Errorf("couldn't list installations: %w", err)
-	// }
-
-	// fmt.Printf("Creating install token with install ID %d\n", installations[0].GetID())
-
 	install, _, err := ghClient.Apps.FindRepositoryInstallation(context.TODO(), "terrabitz", "goreleaser-test")
 	if err != nil {
 		return "", fmt.Errorf("couldn't find repo installation: %w", err)
