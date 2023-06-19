@@ -76,7 +76,7 @@ func run(args Args) error {
 
 		defer r.Body.Close()
 
-		token, err := jwt.Parse(req.Token, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(req.Token, &GitHubClaims{}, func(token *jwt.Token) (interface{}, error) {
 			kid := token.Header["kid"].(string)
 			key, ok := githubPublicKeys[kid]
 			if !ok {
@@ -98,9 +98,10 @@ func run(args Args) error {
 			return
 		}
 
-		iss, err := token.Claims.GetIssuer()
+		claims := token.Claims.(*GitHubClaims)
+		iss, err := claims.GetIssuer()
 		if err != nil {
-			fmt.Printf("couldn't get issuer: %v\n", err)
+			fmt.Printf("unable to get issuer: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -111,16 +112,21 @@ func run(args Args) error {
 			return
 		}
 
-		// fmt.Println(toJson(token))
-		sub, err := token.Claims.GetSubject()
+		sub, err := claims.GetSubject()
 		if err != nil {
-			fmt.Printf("couldn't get subject: %v\n", err)
+			fmt.Printf("unable to get subject: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		if sub != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
 			fmt.Println("repo must be main branch of terrabitz/goreleaser-test")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		if claims.JobWorkflowRef != "terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@refs/heads/main" {
+			fmt.Println("only permitted from send-oidc-token.yaml")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -222,4 +228,28 @@ func (ghClient *GitHubAppClient) GetInstallationToken(orgAndRepo string) (string
 	}
 
 	return token.GetToken(), nil
+}
+
+type GitHubClaims struct {
+	jwt.RegisteredClaims
+	Environment          string `json:"environment"`
+	Ref                  string `json:"ref"`
+	Sha                  string `json:"sha"`
+	Repository           string `json:"repository"`
+	RepositoryOwner      string `json:"repository_owner"`
+	ActorID              string `json:"actor_id"`
+	RepositoryVisibility string `json:"repository_visibility"`
+	RepositoryID         string `json:"repository_id"`
+	RepositoryOwnerID    string `json:"repository_owner_id"`
+	RunID                string `json:"run_id"`
+	RunNumber            string `json:"run_number"`
+	RunAttempt           string `json:"run_attempt"`
+	RunnerEnvironment    string `json:"runner_environment"`
+	Actor                string `json:"actor"`
+	Workflow             string `json:"workflow"`
+	HeadRef              string `json:"head_ref"`
+	BaseRef              string `json:"base_ref"`
+	EventName            string `json:"event_name"`
+	RefType              string `json:"ref_type"`
+	JobWorkflowRef       string `json:"job_workflow_ref"`
 }
