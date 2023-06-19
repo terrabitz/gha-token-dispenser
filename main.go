@@ -77,6 +77,11 @@ func run(args Args) error {
 			return githubPublicKeys[token.Header["kid"].(string)], nil
 		})
 
+		if err != nil {
+			fmt.Printf("could not parse JWT: %v\n", err)
+			return
+		}
+
 		if !token.Valid {
 			fmt.Println("key is not valid!")
 			return
@@ -87,7 +92,7 @@ func run(args Args) error {
 		// fmt.Println(toJson(token))
 		sub, err := token.Claims.GetSubject()
 		if err != nil {
-			fmt.Println("couldn't get subject: %v", err)
+			fmt.Printf("couldn't get subject: %v\n", err)
 			return
 		}
 
@@ -98,7 +103,7 @@ func run(args Args) error {
 
 		installToken, err := ghClient.GetInstallationToken()
 		if err != nil {
-			fmt.Println("couldn't get install token: %v", err)
+			fmt.Printf("couldn't get install token: %v\n", err)
 			return
 		}
 
