@@ -74,8 +74,14 @@ func run(args Args) error {
 		defer r.Body.Close()
 
 		token, err := jwt.Parse(string(b), func(token *jwt.Token) (interface{}, error) {
-			return githubPublicKeys[token.Header["kid"].(string)], nil
-		})
+			kid := token.Header["kid"].(string)
+			key, ok := githubPublicKeys[kid]
+			if !ok {
+				return nil, fmt.Errorf("couldn't find public key corresponding to KID '%s", kid)
+			}
+
+			return key, nil
+		}, jwt.WithValidMethods([]string{"RS256"}))
 
 		if err != nil {
 			fmt.Printf("could not parse JWT: %v\n", err)
@@ -87,7 +93,16 @@ func run(args Args) error {
 			return
 		}
 
-		fmt.Println("Token is valid!")
+		iss, err := token.Claims.GetIssuer()
+		if err != nil {
+			fmt.Printf("couldn't get issuer: %v\n", err)
+			return
+		}
+
+		if iss != "https://token.actions.githubusercontent.com" {
+			fmt.Println("issuer isn't GitHub Actions")
+			return
+		}
 
 		// fmt.Println(toJson(token))
 		sub, err := token.Claims.GetSubject()
@@ -108,6 +123,7 @@ func run(args Args) error {
 		}
 
 		fmt.Fprint(w, installToken)
+		fmt.Println("Sent install token!")
 	})
 
 	srv := http.Server{
