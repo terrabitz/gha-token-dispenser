@@ -96,13 +96,13 @@ func run(args Args) error {
 			return
 		}
 
-		if idToken.Issuer != "https://token.actions.githubusercontent.com" {
+		if claims.Iss != "https://token.actions.githubusercontent.com" {
 			fmt.Println("issuer isn't GitHub Actions")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		if idToken.Subject != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
+		if claims.Sub != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
 			fmt.Println("repo must be main branch of terrabitz/goreleaser-test")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -179,7 +179,10 @@ func (ghClient *GitHubAppClient) GetInstallationToken(orgAndRepo string) (string
 }
 
 type GitHubClaims struct {
+	Jti                  string `json:"jti"`
+	Sub                  string `json:"sub"`
 	Environment          string `json:"environment"`
+	Aud                  string `json:"aud"`
 	Ref                  string `json:"ref"`
 	Sha                  string `json:"sha"`
 	Repository           string `json:"repository"`
@@ -199,4 +202,8 @@ type GitHubClaims struct {
 	EventName            string `json:"event_name"`
 	RefType              string `json:"ref_type"`
 	JobWorkflowRef       string `json:"job_workflow_ref"`
+	Iss                  string `json:"iss"`
+	Nbf                  int    `json:"nbf"`
+	Exp                  int    `json:"exp"`
+	Iat                  int    `json:"iat"`
 }
