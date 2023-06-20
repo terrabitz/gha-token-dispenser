@@ -18,6 +18,8 @@ import (
 	cli "github.com/urfave/cli/v2"
 )
 
+const githubTokenIssuer = "https://token.actions.githubusercontent.com"
+
 func main() {
 	godotenv.Load()
 
@@ -60,7 +62,7 @@ func run(args Args) error {
 		return fmt.Errorf("couldn't create GitHub client: %w", err)
 	}
 
-	provider, err := oidc.NewProvider(context.TODO(), "https://token.actions.githubusercontent.com")
+	provider, err := oidc.NewProvider(context.TODO(), githubTokenIssuer)
 	if err != nil {
 		return fmt.Errorf("couldn't create OIDC provider: %w", err)
 	}
@@ -91,7 +93,7 @@ func run(args Args) error {
 			return
 		}
 
-		if idToken.Issuer != "https://token.actions.githubusercontent.com" {
+		if idToken.Issuer != githubTokenIssuer {
 			fmt.Println("issuer isn't GitHub Actions")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
