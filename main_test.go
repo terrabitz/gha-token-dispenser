@@ -72,9 +72,9 @@ func TestIsCallerAuthorized(t *testing.T) {
 				},
 				rules: []Rule{
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/foo",
-							"environment": "prod",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/foo"},
+							"environment": {"prod"},
 						},
 					},
 				},
@@ -91,9 +91,9 @@ func TestIsCallerAuthorized(t *testing.T) {
 				},
 				rules: []Rule{
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/foo",
-							"environment": "dev",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/foo"},
+							"environment": {"dev"},
 						},
 					},
 				},
@@ -110,9 +110,9 @@ func TestIsCallerAuthorized(t *testing.T) {
 				},
 				rules: []Rule{
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/*",
-							"environment": "prod",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/*"},
+							"environment": {"prod"},
 						},
 					},
 				},
@@ -129,15 +129,15 @@ func TestIsCallerAuthorized(t *testing.T) {
 				},
 				rules: []Rule{
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/foo",
-							"environment": "prod",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/foo"},
+							"environment": {"prod"},
 						},
 					},
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/bar",
-							"environment": "prod",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/bar"},
+							"environment": {"prod"},
 						},
 					},
 				},
@@ -154,15 +154,53 @@ func TestIsCallerAuthorized(t *testing.T) {
 				},
 				rules: []Rule{
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/bar",
-							"environment": "prod",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/bar"},
+							"environment": {"prod"},
 						},
 					},
 					{
-						Fields: map[string]string{
-							"sub":         "repo:example/foo",
-							"environment": "dev",
+						Fields: map[string][]string{
+							"sub":         {"repo:example/foo"},
+							"environment": {"dev"},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "Matches if at least one wildcard matches",
+			args: args{
+				claims: GitHubClaims{
+					Sub:            "repo:example/foo",
+					Environment:    "prod",
+					JobWorkflowRef: "foobar.yaml",
+				},
+				rules: []Rule{
+					{
+						Fields: map[string][]string{
+							"sub":         {"repo:example/foo"},
+							"environment": {"prod", "dev"},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Doesn't match if no wildcard matches",
+			args: args{
+				claims: GitHubClaims{
+					Sub:            "repo:example/foo",
+					Environment:    "prod",
+					JobWorkflowRef: "foobar.yaml",
+				},
+				rules: []Rule{
+					{
+						Fields: map[string][]string{
+							"sub":         {"repo:example/foo"},
+							"environment": {"stage", "dev"},
 						},
 					},
 				},
@@ -179,9 +217,9 @@ func TestIsCallerAuthorized(t *testing.T) {
 				},
 				rules: []Rule{
 					{
-						Fields: map[string]string{
-							"asdfasdf":    "repo:example/*",
-							"environment": "prod",
+						Fields: map[string][]string{
+							"asdfasdf":    {"repo:example/*"},
+							"environment": {"prod"},
 						},
 					},
 				},
@@ -189,6 +227,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := IsCallerAuthorized(tt.args.claims, tt.args.rules)

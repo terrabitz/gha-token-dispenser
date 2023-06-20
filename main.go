@@ -106,9 +106,9 @@ func run(args Args) error {
 
 		rules := []Rule{
 			{
-				Fields: map[string]string{
-					"sub":              "repo:terrabitz/goreleaser-test:*",
-					"job_workflow_ref": "terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*",
+				Fields: map[string][]string{
+					"sub":              {"repo:terrabitz/goreleaser-test:*"},
+					"job_workflow_ref": {"terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"},
 				},
 			},
 		}
@@ -218,7 +218,7 @@ type GitHubClaims struct {
 }
 
 type Rule struct {
-	Fields map[string]string
+	Fields map[string][]string
 }
 
 func IsCallerAuthorized(claims GitHubClaims, rules []Rule) (bool, error) {
@@ -243,12 +243,24 @@ func claimMatchesRule(claims GitHubClaims, rule Rule) (bool, error) {
 			return false, fmt.Errorf("couldn't match rules: %w", err)
 		}
 
-		if !matchesWildcard(claimValue, value) {
+		if !Any(value, func(s string) bool {
+			return matchesWildcard(claimValue, s)
+		}) {
 			return false, nil
 		}
 	}
 
 	return true, nil
+}
+
+func Any[T any](tt []T, fn func(T) bool) bool {
+	for _, t := range tt {
+		if fn(t) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func getFieldByJSONTag(v any, jsonTag string) (string, error) {
