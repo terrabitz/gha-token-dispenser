@@ -69,6 +69,10 @@ func run(args Args) error {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 
+		if r.Method != http.MethodPost {
+			return
+		}
+
 		var req GetTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			fmt.Printf("couldn't decode request: %v\n", err)
