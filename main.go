@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
@@ -102,14 +104,24 @@ func run(args Args) error {
 			return
 		}
 
-		if claims.Sub != "repo:terrabitz/goreleaser-test:ref:refs/heads/main" {
-			fmt.Println("repo must be main branch of terrabitz/goreleaser-test")
-			w.WriteHeader(http.StatusUnauthorized)
+		rules := []Rule{
+			{
+				Fields: map[string]string{
+					"sub":              "repo:terrabitz/goreleaser-test:*",
+					"job_workflow_ref": "terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*",
+				},
+			},
+		}
+
+		authorized, err := IsCallerAuthorized(claims, rules)
+		if err != nil {
+			fmt.Printf("error while making authorization decision: %v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		if claims.JobWorkflowRef != "terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@refs/heads/main" {
-			fmt.Println("only permitted from send-oidc-token.yaml")
+		if !authorized {
+			fmt.Printf("caller is not authorized to generate a token for repo %s", req.Repo)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -203,7 +215,62 @@ type GitHubClaims struct {
 	RefType              string `json:"ref_type"`
 	JobWorkflowRef       string `json:"job_workflow_ref"`
 	Iss                  string `json:"iss"`
-	Nbf                  int    `json:"nbf"`
-	Exp                  int    `json:"exp"`
-	Iat                  int    `json:"iat"`
+}
+
+type Rule struct {
+	Fields map[string]string
+}
+
+func IsCallerAuthorized(claims GitHubClaims, rules []Rule) (bool, error) {
+	for _, rule := range rules {
+		matches, err := claimMatchesRule(claims, rule)
+		if err != nil {
+			return false, fmt.Errorf("error matching rule: %w", err)
+		}
+
+		if matches {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func claimMatchesRule(claims GitHubClaims, rule Rule) (bool, error) {
+	for field, value := range rule.Fields {
+		claimValue, err := getFieldByJSONTag(claims, field)
+		if err != nil {
+			return false, fmt.Errorf("couldn't match rules: %w", err)
+		}
+
+		if !matchesWildcard(claimValue, value) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func getFieldByJSONTag(v any, jsonTag string) (string, error) {
+	val := reflect.ValueOf(v)
+	st := reflect.TypeOf(v)
+	for i := 0; i < st.NumField(); i++ {
+		field := st.Field(i)
+		if jsonField, ok := field.Tag.Lookup("json"); ok {
+			if jsonField == jsonTag {
+				fieldValue := val.FieldByIndex([]int{i})
+				return fieldValue.String(), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("couldn't find element '%s'", jsonTag)
+}
+
+func matchesWildcard(s, wildcard string) bool {
+	escaped := regexp.QuoteMeta(wildcard)
+	expanded := strings.Replace(escaped, "\\*", ".*", -1)
+	anchored := fmt.Sprintf("^%s$", expanded)
+	re, _ := regexp.Compile(anchored)
+	return re.MatchString(s)
 }
