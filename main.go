@@ -91,16 +91,16 @@ func run(args Args) error {
 			return
 		}
 
+		if idToken.Issuer != "https://token.actions.githubusercontent.com" {
+			fmt.Println("issuer isn't GitHub Actions")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
 		var claims GitHubClaims
 		if err := idToken.Claims(&claims); err != nil {
 			fmt.Printf("could not extract GitHub custom claims: %v\n", err)
 			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if claims.Iss != "https://token.actions.githubusercontent.com" {
-			fmt.Println("issuer isn't GitHub Actions")
-			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
@@ -113,7 +113,7 @@ func run(args Args) error {
 			},
 		}
 
-		authorized, err := IsCallerAuthorized(claims, rules)
+		authorized, err := ClaimMatchesAnyRule(claims, rules)
 		if err != nil {
 			fmt.Printf("error while making authorization decision: %v\n", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -221,7 +221,7 @@ type Rule struct {
 	Fields map[string][]string
 }
 
-func IsCallerAuthorized(claims GitHubClaims, rules []Rule) (bool, error) {
+func ClaimMatchesAnyRule(claims GitHubClaims, rules []Rule) (bool, error) {
 	for _, rule := range rules {
 		matches, err := claimMatchesRule(claims, rule)
 		if err != nil {
@@ -237,14 +237,14 @@ func IsCallerAuthorized(claims GitHubClaims, rules []Rule) (bool, error) {
 }
 
 func claimMatchesRule(claims GitHubClaims, rule Rule) (bool, error) {
-	for field, value := range rule.Fields {
+	for field, wildcards := range rule.Fields {
 		claimValue, err := getFieldByJSONTag(claims, field)
 		if err != nil {
 			return false, fmt.Errorf("couldn't match rules: %w", err)
 		}
 
-		if !Any(value, func(s string) bool {
-			return matchesWildcard(claimValue, s)
+		if !Any(wildcards, func(wildcard string) bool {
+			return matchesWildcard(claimValue, wildcard)
 		}) {
 			return false, nil
 		}

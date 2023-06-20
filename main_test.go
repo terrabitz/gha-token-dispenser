@@ -51,7 +51,7 @@ func Test_getFieldByJSONTag(t *testing.T) {
 	}
 }
 
-func TestIsCallerAuthorized(t *testing.T) {
+func TestClaimMatchesAnyRule(t *testing.T) {
 	testClaims := GitHubClaims{
 		Sub:            "repo:example/foo",
 		Environment:    "prod",
@@ -156,7 +156,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "Matches if at least one wildcard matches",
+			name: "Matches if at least one of multiple wildcards matches",
 			args: args{
 				claims: testClaims,
 				rules: []Rule{
@@ -171,7 +171,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "Doesn't match if no wildcard matches",
+			name: "Doesn't match if none of multiple wildcards matches",
 			args: args{
 				claims: testClaims,
 				rules: []Rule{
@@ -204,7 +204,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := IsCallerAuthorized(tt.args.claims, tt.args.rules)
+			got, err := ClaimMatchesAnyRule(tt.args.claims, tt.args.rules)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("IsCallerAuthorized() error = %v, wantErr %v", err, tt.wantErr)
 				return
