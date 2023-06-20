@@ -86,6 +86,13 @@ func run(args Args) error {
 
 		defer r.Body.Close()
 
+		targetRepo, err := ParseRepository(req.Repo)
+		if err != nil {
+			fmt.Printf("couldn't parse repository: %v\n", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		idToken, err := verifier.Verify(r.Context(), req.Token)
 		if err != nil {
 			fmt.Printf("invalid token: %v\n", err)
@@ -106,7 +113,7 @@ func run(args Args) error {
 			return
 		}
 
-		rules := GetRulesForRepo(req.Repo)
+		rules := GetRulesForRepo(targetRepo)
 
 		authorized, err := ClaimMatchesAnyRule(claims, rules)
 		if err != nil {
@@ -121,7 +128,7 @@ func run(args Args) error {
 			return
 		}
 
-		installToken, err := ghClient.GetInstallationToken(req.Repo)
+		installToken, err := ghClient.GetInstallationToken(targetRepo)
 		if err != nil {
 			fmt.Printf("couldn't get install token: %v\n", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -169,10 +176,8 @@ func NewGitHubAppClient(args Args) (*GitHubAppClient, error) {
 	return &GitHubAppClient{client}, nil
 }
 
-func (ghClient *GitHubAppClient) GetInstallationToken(orgAndRepo string) (string, error) {
-	parts := strings.SplitN(orgAndRepo, "/", 2)
-	org, repo := parts[0], parts[1]
-	install, _, err := ghClient.Apps.FindRepositoryInstallation(context.TODO(), org, repo)
+func (ghClient *GitHubAppClient) GetInstallationToken(repo Repository) (string, error) {
+	install, _, err := ghClient.Apps.FindRepositoryInstallation(context.TODO(), repo.Owner, repo.Name)
 	if err != nil {
 		return "", fmt.Errorf("couldn't find repo installation: %w", err)
 	}
@@ -210,6 +215,25 @@ type GitHubClaims struct {
 	RefType              string `json:"ref_type"`
 	JobWorkflowRef       string `json:"job_workflow_ref"`
 	Iss                  string `json:"iss"`
+}
+
+type Repository struct {
+	Name     string
+	Owner    string
+	FullName string
+}
+
+func ParseRepository(orgAndRepo string) (Repository, error) {
+	parts := strings.Split(orgAndRepo, "/")
+	if len(parts) != 2 {
+		return Repository{}, fmt.Errorf("invalid format for repository '%s'; must use 'org/name' format", orgAndRepo)
+	}
+
+	return Repository{
+		Owner:    parts[0],
+		Name:     parts[1],
+		FullName: orgAndRepo,
+	}, nil
 }
 
 type AuthorizationRule struct {
@@ -282,7 +306,7 @@ func matchesWildcard(s, wildcard string) bool {
 	return re.MatchString(s)
 }
 
-func GetRulesForRepo(repo string) []AuthorizationRule {
+func GetRulesForRepo(repo Repository) []AuthorizationRule {
 	rules := map[string][]AuthorizationRule{
 		"terrabitz/goreleaser-test": {{
 			Fields: map[string][]string{
@@ -292,5 +316,5 @@ func GetRulesForRepo(repo string) []AuthorizationRule {
 		}},
 	}
 
-	return rules[repo]
+	return rules[repo.FullName]
 }
