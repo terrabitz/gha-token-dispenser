@@ -52,6 +52,12 @@ func Test_getFieldByJSONTag(t *testing.T) {
 }
 
 func TestIsCallerAuthorized(t *testing.T) {
+	testClaims := GitHubClaims{
+		Sub:            "repo:example/foo",
+		Environment:    "prod",
+		JobWorkflowRef: "foobar.yaml",
+	}
+
 	type args struct {
 		claims GitHubClaims
 		rules  []Rule
@@ -65,11 +71,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Matches string by exact match",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -84,11 +86,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Doesn't match string by exact match",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -103,11 +101,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Matches by wildcard",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -122,11 +116,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Matches if at least one rule matches",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -147,11 +137,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Doesn't match if no rule matches",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -172,11 +158,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Matches if at least one wildcard matches",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -191,11 +173,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Doesn't match if no wildcard matches",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
@@ -210,11 +188,7 @@ func TestIsCallerAuthorized(t *testing.T) {
 		{
 			name: "Errors if rule references a bad field",
 			args: args{
-				claims: GitHubClaims{
-					Sub:            "repo:example/foo",
-					Environment:    "prod",
-					JobWorkflowRef: "foobar.yaml",
-				},
+				claims: testClaims,
 				rules: []Rule{
 					{
 						Fields: map[string][]string{
