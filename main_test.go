@@ -60,7 +60,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 
 	type args struct {
 		claims GitHubClaims
-		rules  []Rule
+		rules  []AuthorizationRule
 	}
 	tests := []struct {
 		name    string
@@ -72,7 +72,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Matches string by exact match",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/foo"},
@@ -87,7 +87,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Doesn't match string by exact match",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/foo"},
@@ -102,7 +102,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Matches by wildcard",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/*"},
@@ -117,7 +117,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Matches if at least one rule matches",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/foo"},
@@ -138,7 +138,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Doesn't match if no rule matches",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/bar"},
@@ -159,7 +159,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Matches if at least one of multiple wildcards matches",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/foo"},
@@ -174,7 +174,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Doesn't match if none of multiple wildcards matches",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"sub":         {"repo:example/foo"},
@@ -189,7 +189,7 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 			name: "Errors if rule references a bad field",
 			args: args{
 				claims: testClaims,
-				rules: []Rule{
+				rules: []AuthorizationRule{
 					{
 						Fields: map[string][]string{
 							"asdfasdf":    {"repo:example/*"},

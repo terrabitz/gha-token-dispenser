@@ -106,14 +106,7 @@ func run(args Args) error {
 			return
 		}
 
-		rules := []Rule{
-			{
-				Fields: map[string][]string{
-					"sub":              {"repo:terrabitz/goreleaser-test:*"},
-					"job_workflow_ref": {"terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"},
-				},
-			},
-		}
+		rules := GetRulesForRepo(req.Repo)
 
 		authorized, err := ClaimMatchesAnyRule(claims, rules)
 		if err != nil {
@@ -219,11 +212,11 @@ type GitHubClaims struct {
 	Iss                  string `json:"iss"`
 }
 
-type Rule struct {
+type AuthorizationRule struct {
 	Fields map[string][]string
 }
 
-func ClaimMatchesAnyRule(claims GitHubClaims, rules []Rule) (bool, error) {
+func ClaimMatchesAnyRule(claims GitHubClaims, rules []AuthorizationRule) (bool, error) {
 	for _, rule := range rules {
 		matches, err := claimMatchesRule(claims, rule)
 		if err != nil {
@@ -238,7 +231,7 @@ func ClaimMatchesAnyRule(claims GitHubClaims, rules []Rule) (bool, error) {
 	return false, nil
 }
 
-func claimMatchesRule(claims GitHubClaims, rule Rule) (bool, error) {
+func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) (bool, error) {
 	for field, wildcards := range rule.Fields {
 		claimValue, err := getFieldByJSONTag(claims, field)
 		if err != nil {
@@ -287,4 +280,17 @@ func matchesWildcard(s, wildcard string) bool {
 	anchored := fmt.Sprintf("^%s$", expanded)
 	re, _ := regexp.Compile(anchored)
 	return re.MatchString(s)
+}
+
+func GetRulesForRepo(repo string) []AuthorizationRule {
+	rules := map[string][]AuthorizationRule{
+		"terrabitz/goreleaser-test": {{
+			Fields: map[string][]string{
+				"sub":              {"repo:terrabitz/goreleaser-test:*"},
+				"job_workflow_ref": {"terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"},
+			},
+		}},
+	}
+
+	return rules[repo]
 }
