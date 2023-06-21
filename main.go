@@ -69,6 +69,8 @@ func run(args Args) error {
 
 	verifier := provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
 
+	var ruleRepo RuleRepository = MemRuleRepository{}
+
 	var mux http.ServeMux
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
@@ -113,7 +115,12 @@ func run(args Args) error {
 			return
 		}
 
-		rules := GetRulesForRepo(targetRepo)
+		rules, err := ruleRepo.GetRulesForRepo(r.Context(), targetRepo)
+		if err != nil {
+			fmt.Printf("could not get rules for repository: %v\n", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
 		authorized, err := ClaimMatchesAnyRule(claims, rules)
 		if err != nil {
@@ -257,7 +264,7 @@ func ClaimMatchesAnyRule(claims GitHubClaims, rules []AuthorizationRule) (bool, 
 
 func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) (bool, error) {
 	for field, wildcards := range rule.Fields {
-		claimValue, err := getFieldByJSONTag(claims, field)
+		claimValue, err := getStringValueByJSONTag(claims, field)
 		if err != nil {
 			return false, fmt.Errorf("couldn't match rules: %w", err)
 		}
@@ -306,7 +313,13 @@ func matchesWildcard(s, wildcard string) bool {
 	return re.MatchString(s)
 }
 
-func GetRulesForRepo(repo Repository) []AuthorizationRule {
+type RuleRepository interface {
+	GetRulesForRepo(context.Context, Repository) ([]AuthorizationRule, error)
+}
+
+type MemRuleRepository struct{}
+
+func (_ MemRuleRepository) GetRulesForRepo(_ context.Context, repo Repository) ([]AuthorizationRule, error) {
 	rules := map[string][]AuthorizationRule{
 		"terrabitz/goreleaser-test": {{
 			Fields: map[string][]string{
@@ -316,5 +329,10 @@ func GetRulesForRepo(repo Repository) []AuthorizationRule {
 		}},
 	}
 
-	return rules[repo.FullName]
+	rule, ok := rules[repo.FullName]
+	if !ok {
+		return nil, fmt.Errorf("repo '%s' isn't defined in the map", repo.FullName)
+	}
+
+	return rule, nil
 }
