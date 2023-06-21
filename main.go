@@ -16,9 +16,16 @@ import (
 	"github.com/google/go-github/v53/github"
 	"github.com/joho/godotenv"
 	cli "github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v3"
 )
 
 const githubTokenIssuer = "https://token.actions.githubusercontent.com"
+
+type Args struct {
+	AppID          int64
+	PrivateKeyFile string
+	RulesFile      string
+}
 
 func main() {
 	godotenv.Load()
@@ -40,6 +47,11 @@ func main() {
 				Required:    true,
 				EnvVars:     []string{"PRIVATE_KEY_FILE"},
 			},
+			&cli.StringFlag{
+				Name:        "rules-file",
+				Destination: &args.RulesFile,
+				EnvVars:     []string{"RULES_FILE"},
+			},
 		},
 		Action: func(cCtx *cli.Context) error {
 			return run(args)
@@ -49,11 +61,6 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
-}
-
-type Args struct {
-	AppID          int64
-	PrivateKeyFile string
 }
 
 func run(args Args) error {
@@ -70,6 +77,12 @@ func run(args Args) error {
 	verifier := provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
 
 	var ruleRepo RuleRepository = MemRuleRepository{}
+	if args.RulesFile != "" {
+		ruleRepo, err = NewFileRuleRepository(args.RulesFile)
+		if err != nil {
+			return fmt.Errorf("couldn't read authorization rules from file: %w", err)
+		}
+	}
 
 	var mux http.ServeMux
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -335,4 +348,44 @@ func (_ MemRuleRepository) GetRulesForRepo(_ context.Context, repo Repository) (
 	}
 
 	return rule, nil
+}
+
+type FileRuleRepository struct {
+	RepoRules map[string][]AuthorizationRule
+}
+
+// type FileRuleRepositoryConfig map[string][]map[string][]string
+type FileRuleRepositoryConfig struct {
+	RepoRules map[string][]struct {
+		Fields map[string][]string `yaml:"fields,inline"`
+	} `yaml:"repo_rules,inline"`
+}
+
+func NewFileRuleRepository(file string) (FileRuleRepository, error) {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return FileRuleRepository{}, fmt.Errorf("couldn't read file '%s': %w", file, err)
+	}
+
+	var config FileRuleRepositoryConfig
+	yaml.Unmarshal(b, &config)
+
+	frr := FileRuleRepository{
+		RepoRules: map[string][]AuthorizationRule{},
+	}
+	for repo, rules := range config.RepoRules {
+		var authRules []AuthorizationRule
+		for _, rule := range rules {
+			authRules = append(authRules, AuthorizationRule{
+				Fields: rule.Fields,
+			})
+		}
+		frr.RepoRules[repo] = authRules
+	}
+
+	return frr, nil
+}
+
+func (frr FileRuleRepository) GetRulesForRepo(_ context.Context, repo Repository) ([]AuthorizationRule, error) {
+	return frr.RepoRules[repo.FullName], nil
 }

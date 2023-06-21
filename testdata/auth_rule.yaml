@@ -1,0 +1,7 @@
+terrabitz/foo:
+  - sub: [repo:terrabitz/*]
+    environment: [prod]
+
+terrabitz/bar:
+  - sub: [repo:terrabitz/foo]
+    environment: [dev, prod]

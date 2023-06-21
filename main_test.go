@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/go-test/deep"
 )
 
 func Test_getFieldByJSONTag(t *testing.T) {
@@ -239,6 +241,53 @@ func Test_matchesWildcard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := matchesWildcard(tt.args.s, tt.args.wildcard); got != tt.want {
 				t.Errorf("matchesWildcard() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewFileRuleRepository(t *testing.T) {
+	type args struct {
+		file string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    FileRuleRepository
+		wantErr bool
+	}{
+		{
+			name: "Parses a test file",
+			args: args{
+				file: "./testdata/auth_rule.yaml",
+			},
+			want: FileRuleRepository{
+				RepoRules: map[string][]AuthorizationRule{
+					"terrabitz/foo": {
+						{Fields: map[string][]string{
+							"sub":         {"repo:terrabitz/*"},
+							"environment": {"prod"},
+						}},
+					},
+					"terrabitz/bar": {
+						{Fields: map[string][]string{
+							"sub":         {"repo:terrabitz/foo"},
+							"environment": {"dev", "prod"},
+						}},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewFileRuleRepository(tt.args.file)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewFileRuleRepository() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if diff := deep.Equal(got, tt.want); diff != nil {
+				t.Error(diff)
 			}
 		})
 	}
