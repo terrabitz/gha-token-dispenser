@@ -282,7 +282,7 @@ func Any[T any](tt []T, fn func(T) bool) bool {
 	return false
 }
 
-func getFieldByJSONTag(v any, jsonTag string) (string, error) {
+func getStringValueByJSONTag(v any, jsonTag string) (string, error) {
 	val := reflect.ValueOf(v)
 	st := reflect.TypeOf(v)
 	for i := 0; i < st.NumField(); i++ {
