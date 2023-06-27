@@ -210,7 +210,9 @@ func (ghClient *GitHubAppClient) GetInstallationToken(repo Repository) (string, 
 		return "", fmt.Errorf("couldn't find repo installation: %w", err)
 	}
 
-	token, _, err := ghClient.Apps.CreateInstallationToken(context.TODO(), install.GetID(), &github.InstallationTokenOptions{})
+	token, _, err := ghClient.Apps.CreateInstallationToken(context.TODO(), install.GetID(), &github.InstallationTokenOptions{
+		Repositories: []string{repo.FullName},
+	})
 	if err != nil {
 		return "", fmt.Errorf("couldn't create installation token: %w", err)
 	}
@@ -362,7 +364,6 @@ type FileRuleRepository struct {
 	RepoRules map[string][]AuthorizationRule
 }
 
-// type FileRuleRepositoryConfig map[string][]map[string][]string
 type FileRuleRepositoryConfig struct {
 	RepoRules map[string][]struct {
 		Fields map[string][]string `yaml:"fields,inline"`
