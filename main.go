@@ -130,6 +130,12 @@ func run(args Args) error {
 			return
 		}
 
+		if claims.RepositoryOwner != targetRepo.Owner {
+			fmt.Printf("caller must have same owner as target")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
 		rules, err := ruleRepo.GetRulesForRepo(r.Context(), targetRepo)
 		if err != nil {
 			fmt.Printf("could not get rules for repository: %v\n", err)
