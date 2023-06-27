@@ -156,7 +156,7 @@ func run(args Args) error {
 			return
 		}
 
-		installToken, err := ghClient.GetInstallationToken(targetRepo)
+		installToken, err := ghClient.GetInstallationToken(r.Context(), targetRepo)
 		if err != nil {
 			fmt.Printf("couldn't get install token: %v\n", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -204,13 +204,13 @@ func NewGitHubAppClient(args Args) (*GitHubAppClient, error) {
 	return &GitHubAppClient{client}, nil
 }
 
-func (ghClient *GitHubAppClient) GetInstallationToken(repo Repository) (string, error) {
-	install, _, err := ghClient.Apps.FindRepositoryInstallation(context.TODO(), repo.Owner, repo.Name)
+func (ghClient *GitHubAppClient) GetInstallationToken(ctx context.Context, repo Repository) (string, error) {
+	install, _, err := ghClient.Apps.FindRepositoryInstallation(ctx, repo.Owner, repo.Name)
 	if err != nil {
 		return "", fmt.Errorf("couldn't find repo installation: %w", err)
 	}
 
-	token, _, err := ghClient.Apps.CreateInstallationToken(context.TODO(), install.GetID(), &github.InstallationTokenOptions{
+	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, install.GetID(), &github.InstallationTokenOptions{
 		Repositories: []string{repo.FullName},
 	})
 	if err != nil {
