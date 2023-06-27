@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -74,16 +75,22 @@ func run(args Args) error {
 		return fmt.Errorf("couldn't create OIDC provider: %w", err)
 	}
 
-	verifier := provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
+	oidcVerifier := provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
 
-	var ruleRepo RuleRepository = MemRuleRepository{}
+	var authRulesRepo AuthRuleRepository = MemRuleRepository{}
 	if args.RulesFile != "" {
-		ruleRepo, err = NewFileRuleRepository(args.RulesFile)
+		authRulesRepo, err = NewFileRuleRepository(args.RulesFile)
 		if err != nil {
 			return fmt.Errorf("couldn't read authorization rules from file: %w", err)
 		}
 
 		fmt.Printf("using rules file at '%s'\n", args.RulesFile)
+	}
+
+	srv := Server{
+		ghClient:     ghClient,
+		authRules:    authRulesRepo,
+		oidcVerifier: oidcVerifier,
 	}
 
 	var mux http.ServeMux
@@ -103,91 +110,96 @@ func run(args Args) error {
 
 		defer r.Body.Close()
 
-		targetRepo, err := ParseRepository(req.Repo)
+		res, err := srv.GenerateGitHubToken(r.Context(), req)
 		if err != nil {
-			fmt.Printf("couldn't parse repository: %v\n", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		idToken, err := verifier.Verify(r.Context(), req.Token)
-		if err != nil {
-			fmt.Printf("invalid token: %v\n", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if idToken.Issuer != githubTokenIssuer {
-			fmt.Println("issuer isn't GitHub Actions")
+			fmt.Printf("%v\n", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		var claims GitHubClaims
-		if err := idToken.Claims(&claims); err != nil {
-			fmt.Printf("could not extract GitHub custom claims: %v\n", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if claims.RepositoryOwner != targetRepo.Owner {
-			fmt.Printf("caller must have same owner as target")
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		rules, err := ruleRepo.GetRulesForRepo(r.Context(), targetRepo)
-		if err != nil {
-			fmt.Printf("could not get rules for repository: %v\n", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		authorized, err := ClaimMatchesAnyRule(claims, rules)
-		if err != nil {
-			fmt.Printf("error while making authorization decision: %v\n", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if !authorized {
-			fmt.Printf("caller is not authorized to generate a token for repo %s", req.Repo)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		installToken, err := ghClient.GetInstallationToken(r.Context(), targetRepo)
-		if err != nil {
-			fmt.Printf("couldn't get install token: %v\n", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprint(w, installToken)
+		fmt.Fprint(w, res.Token)
 		fmt.Println("Sent install token!")
 	})
 
-	srv := http.Server{
+	httpSrv := http.Server{
 		Addr:    "0.0.0.0:9999",
 		Handler: &mux,
 	}
 
-	fmt.Printf("listening on %s\n", srv.Addr)
-	if err := srv.ListenAndServe(); err != nil {
+	fmt.Printf("listening on %s\n", httpSrv.Addr)
+	if err := httpSrv.ListenAndServe(); err != nil {
 		return fmt.Errorf("error running server: %w", err)
 	}
 
 	return nil
 }
 
-func toJson(v any) string {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return string(b)
+type Server struct {
+	ghClient     *GitHubAppClient
+	authRules    AuthRuleRepository
+	oidcVerifier *oidc.IDTokenVerifier
 }
 
 type GetTokenRequest struct {
-	Repo  string `json:"repo,omitempty"`
+	Repo      string `json:"repo,omitempty"`
+	OIDCToken string `json:"token,omitempty"`
+}
+
+type GetTokenResponse struct {
 	Token string `json:"token,omitempty"`
+}
+
+func (srv *Server) GenerateGitHubToken(ctx context.Context, req GetTokenRequest) (GetTokenResponse, error) {
+	targetRepo, err := ParseRepository(req.Repo)
+	if err != nil {
+		return GetTokenResponse{}, fmt.Errorf("couldn't parse repository: %w", err)
+	}
+
+	idToken, err := srv.oidcVerifier.Verify(ctx, req.OIDCToken)
+	if err != nil {
+		return GetTokenResponse{}, fmt.Errorf("invalid token: %w", err)
+	}
+
+	if idToken.Issuer != githubTokenIssuer {
+		return GetTokenResponse{}, errors.New("issuer isn't GitHub Actions")
+	}
+
+	var claims GitHubClaims
+	if err := idToken.Claims(&claims); err != nil {
+		return GetTokenResponse{}, fmt.Errorf("could not extract GitHub custom claims: %w", err)
+	}
+
+	if claims.RepositoryOwner != targetRepo.Owner {
+		return GetTokenResponse{}, errors.New("caller must have same owner as target")
+	}
+
+	rules, err := srv.authRules.GetRulesForRepo(ctx, targetRepo)
+	if err != nil {
+		return GetTokenResponse{}, fmt.Errorf("could not get rules for repository: %w", err)
+	}
+
+	authorized, err := ClaimMatchesAnyRule(claims, rules)
+	if err != nil {
+		return GetTokenResponse{}, fmt.Errorf("error while making authorization decision: %w", err)
+	}
+
+	if !authorized {
+		return GetTokenResponse{}, fmt.Errorf("caller is not authorized to generate a token for repo %s", req.Repo)
+	}
+
+	installToken, err := srv.ghClient.GetInstallationToken(ctx, targetRepo)
+	if err != nil {
+		return GetTokenResponse{}, fmt.Errorf("couldn't get install token: %w", err)
+	}
+
+	fmt.Println("Sending install token!")
+
+	return GetTokenResponse{Token: installToken}, nil
+}
+
+func toJson(v any) string {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return string(b)
 }
 
 type GitHubAppClient struct {
@@ -211,7 +223,10 @@ func (ghClient *GitHubAppClient) GetInstallationToken(ctx context.Context, repo 
 	}
 
 	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, install.GetID(), &github.InstallationTokenOptions{
-		Repositories: []string{repo.FullName},
+		Repositories: []string{repo.Name},
+		Permissions: &github.InstallationPermissions{
+			Contents: github.String("write"),
+		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("couldn't create installation token: %w", err)
@@ -336,7 +351,7 @@ func matchesWildcard(s, wildcard string) bool {
 	return re.MatchString(s)
 }
 
-type RuleRepository interface {
+type AuthRuleRepository interface {
 	GetRulesForRepo(context.Context, Repository) ([]AuthorizationRule, error)
 }
 
