@@ -82,6 +82,8 @@ func run(args Args) error {
 		if err != nil {
 			return fmt.Errorf("couldn't read authorization rules from file: %w", err)
 		}
+
+		fmt.Printf("using rules file at '%s'\n", args.RulesFile)
 	}
 
 	var mux http.ServeMux
