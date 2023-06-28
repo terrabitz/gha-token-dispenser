@@ -16,6 +16,25 @@ func Any[T any](tt []T, fn func(T) bool) bool {
 	return false
 }
 
+func All[T any](tt []T, fn func(T) bool) bool {
+	for _, t := range tt {
+		if !fn(t) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func Keys[K comparable, V any](m map[K]V) []K {
+	var keys []K
+	for key := range m {
+		keys = append(keys, key)
+	}
+
+	return keys
+}
+
 func getStringValueByJSONTag(v any, jsonTag string) (string, error) {
 	val := reflect.ValueOf(v)
 	st := reflect.TypeOf(v)

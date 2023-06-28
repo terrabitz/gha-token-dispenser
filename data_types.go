@@ -104,17 +104,14 @@ func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) bool {
 }
 
 func (claims GitHubClaims) MatchesRule(rule AuthorizationRule) bool {
-	for field, wildcards := range rule.Fields {
+	return All(Keys(rule.Fields), func(field GitHubClaimsField) bool {
 		claimValue := claims.GetClaimValue(field)
+		wildcards := rule.Fields[field]
 
-		if !Any(wildcards, func(wildcard Wildcard) bool {
+		return Any(wildcards, func(wildcard Wildcard) bool {
 			return wildcard.MatchString(claimValue)
-		}) {
-			return false
-		}
-	}
-
-	return true
+		})
+	})
 }
 
 func (claims GitHubClaims) GetClaimValue(field GitHubClaimsField) string {
