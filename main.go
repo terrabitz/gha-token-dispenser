@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -87,39 +85,7 @@ func run(args Args) error {
 		oidcVerifier: oidcVerifier,
 	}
 
-	var mux http.ServeMux
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "application/json")
-
-		if r.Method != http.MethodPost {
-			return
-		}
-
-		var req GetTokenRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			fmt.Printf("couldn't decode request: %v\n", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		defer r.Body.Close()
-
-		res, err := srv.GenerateGitHubToken(r.Context(), req)
-		if err != nil {
-			fmt.Printf("%v\n", err)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		fmt.Fprint(w, res.Token)
-		fmt.Println("Sent install token!")
-	})
-
-	httpSrv := http.Server{
-		Addr:    "0.0.0.0:9999",
-		Handler: &mux,
-	}
-
+	httpSrv := NewHTTPServer(&srv)
 	fmt.Printf("listening on %s\n", httpSrv.Addr)
 	if err := httpSrv.ListenAndServe(); err != nil {
 		return fmt.Errorf("error running server: %w", err)
