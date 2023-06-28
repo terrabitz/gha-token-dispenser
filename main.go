@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"regexp"
-	"strings"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -262,25 +260,6 @@ type GitHubClaims struct {
 	Iss                  string `json:"iss"`
 }
 
-type Repository struct {
-	Name     string
-	Owner    string
-	FullName string
-}
-
-func ParseRepository(orgAndRepo string) (Repository, error) {
-	parts := strings.Split(orgAndRepo, "/")
-	if len(parts) != 2 {
-		return Repository{}, fmt.Errorf("invalid format for repository '%s'; must use 'org/name' format", orgAndRepo)
-	}
-
-	return Repository{
-		Owner:    parts[0],
-		Name:     parts[1],
-		FullName: orgAndRepo,
-	}, nil
-}
-
 type AuthorizationRule struct {
 	Fields map[string][]Wildcard
 }
@@ -343,30 +322,6 @@ func getStringValueByJSONTag(v any, jsonTag string) (string, error) {
 	return "", fmt.Errorf("couldn't find element '%s'", jsonTag)
 }
 
-type Wildcard struct {
-	*regexp.Regexp
-}
-
-func NewWildcard(s string) Wildcard {
-	escaped := regexp.QuoteMeta(s)
-	expanded := strings.Replace(escaped, "\\*", ".*", -1)
-	anchored := fmt.Sprintf("^%s$", expanded)
-	re, _ := regexp.Compile(anchored)
-
-	return Wildcard{
-		Regexp: re,
-	}
-}
-
-func NewWildcards(ss ...string) []Wildcard {
-	var wildcards []Wildcard
-	for _, s := range ss {
-		wildcards = append(wildcards, NewWildcard(s))
-	}
-
-	return wildcards
-}
-
 type AuthRuleRepository interface {
 	GetRulesForRepo(context.Context, Repository) ([]AuthorizationRule, error)
 }
@@ -399,24 +354,6 @@ type FileRuleRepositoryConfig struct {
 	RepoRules map[string][]struct {
 		Fields map[string]SingleOrMulti `yaml:"fields,inline"`
 	} `yaml:"repo_rules,inline"`
-}
-
-type SingleOrMulti []string
-
-func (a *SingleOrMulti) UnmarshalYAML(value *yaml.Node) error {
-	var multi []string
-	err := value.Decode(&multi)
-	if err != nil {
-		var single string
-		err := value.Decode(&single)
-		if err != nil {
-			return err
-		}
-		*a = []string{single}
-	} else {
-		*a = multi
-	}
-	return nil
 }
 
 func NewFileRuleRepository(file string) (FileRuleRepository, error) {
