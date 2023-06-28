@@ -98,7 +98,7 @@ type GitHubClaims struct {
 
 func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) bool {
 	for _, rule := range rules {
-		matches := claimMatchesRule(claims, rule)
+		matches := claims.MatchesRule(rule)
 
 		if matches {
 			return true
@@ -108,7 +108,7 @@ func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) bool {
 	return false
 }
 
-func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) bool {
+func (claims GitHubClaims) MatchesRule(rule AuthorizationRule) bool {
 	for field, wildcards := range rule.Fields {
 		claimValue := claims.GetClaimValue(field)
 
@@ -127,6 +127,10 @@ func (claims GitHubClaims) GetClaimValue(field GitHubClaimsField) string {
 	return claim
 }
 
+type AuthorizationRule struct {
+	Fields map[GitHubClaimsField][]Wildcard
+}
+
 type GitHubClaimsField string
 
 func NewGitHubClaimsField(s string) (GitHubClaimsField, error) {
@@ -136,8 +140,4 @@ func NewGitHubClaimsField(s string) (GitHubClaimsField, error) {
 	}
 
 	return GitHubClaimsField(s), nil
-}
-
-type AuthorizationRule struct {
-	Fields map[GitHubClaimsField][]Wildcard
 }
