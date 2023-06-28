@@ -13,7 +13,7 @@ type MemRuleRepository struct{}
 func (_ MemRuleRepository) GetRulesForRepo(_ context.Context, repo Repository) ([]AuthorizationRule, error) {
 	rules := map[string][]AuthorizationRule{
 		"terrabitz/goreleaser-test": {{
-			Fields: map[string][]Wildcard{
+			Fields: map[GitHubClaimsField][]Wildcard{
 				"sub":              NewWildcards("repo:terrabitz/goreleaser-test:*"),
 				"job_workflow_ref": NewWildcards("terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"),
 			},
@@ -53,13 +53,19 @@ func NewFileRuleRepository(file string) (FileRuleRepository, error) {
 	for repo, rules := range config.RepoRules {
 		var authRules []AuthorizationRule
 		for _, rule := range rules {
-			fields := map[string][]Wildcard{}
+			fields := map[GitHubClaimsField][]Wildcard{}
 			for field, values := range rule.Fields {
 				var wildcards []Wildcard
 				for _, value := range values {
 					wildcards = append(wildcards, NewWildcard(value))
 				}
-				fields[field] = wildcards
+
+				claimField, err := NewGitHubClaimsField(field)
+				if err != nil {
+					return FileRuleRepository{}, err
+				}
+
+				fields[claimField] = wildcards
 			}
 
 			authRules = append(authRules, AuthorizationRule{

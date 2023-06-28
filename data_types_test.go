@@ -53,7 +53,7 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/foo"),
 							"environment": NewWildcards("prod"),
 						},
@@ -68,7 +68,7 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/foo"),
 							"environment": NewWildcards("dev"),
 						},
@@ -83,7 +83,7 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/*"),
 							"environment": NewWildcards("prod"),
 						},
@@ -98,13 +98,13 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/foo"),
 							"environment": NewWildcards("prod"),
 						},
 					},
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/bar"),
 							"environment": NewWildcards("prod"),
 						},
@@ -119,13 +119,13 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/bar"),
 							"environment": NewWildcards("prod"),
 						},
 					},
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/foo"),
 							"environment": NewWildcards("dev"),
 						},
@@ -140,7 +140,7 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/foo"),
 							"environment": NewWildcards("prod", "dev"),
 						},
@@ -155,7 +155,7 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]Wildcard{
+						Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:example/foo"),
 							"environment": NewWildcards("stage", "dev"),
 						},
@@ -164,30 +164,11 @@ func TestGitHubClaims_MatchesAnyRule(t *testing.T) {
 			},
 			want: false,
 		},
-		{
-			name: "Errors if rule references a bad field",
-			args: args{
-				claims: testClaims,
-				rules: []AuthorizationRule{
-					{
-						Fields: map[string][]Wildcard{
-							"asdfasdf":    NewWildcards("repo:example/*"),
-							"environment": NewWildcards("prod"),
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.args.claims.MatchesAnyRule(tt.args.rules)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("IsCallerAuthorized() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			got := tt.args.claims.MatchesAnyRule(tt.args.rules)
 			if got != tt.want {
 				t.Errorf("IsCallerAuthorized() = %v, want %v", got, tt.want)
 			}

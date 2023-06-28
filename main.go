@@ -142,12 +142,7 @@ func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRe
 		return GetTokenResponse{}, fmt.Errorf("could not get rules for repository: %w", err)
 	}
 
-	matchesRule, err := claims.MatchesAnyRule(rules)
-	if err != nil {
-		return GetTokenResponse{}, fmt.Errorf("error while making authorization decision: %w", err)
-	}
-
-	if !matchesRule {
+	if !claims.MatchesAnyRule(rules) {
 		return GetTokenResponse{}, fmt.Errorf("caller is not authorized to generate a token for repo %s", req.Repo)
 	}
 

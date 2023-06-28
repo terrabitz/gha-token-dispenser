@@ -24,13 +24,13 @@ func TestNewFileRuleRepository(t *testing.T) {
 			want: FileRuleRepository{
 				RepoRules: map[string][]AuthorizationRule{
 					"terrabitz/foo": {
-						{Fields: map[string][]Wildcard{
+						{Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/*"),
 							"environment": NewWildcards("prod"),
 						}},
 					},
 					"terrabitz/bar": {
-						{Fields: map[string][]Wildcard{
+						{Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/foo"),
 							"environment": NewWildcards("dev", "prod"),
 						}},
@@ -46,13 +46,13 @@ func TestNewFileRuleRepository(t *testing.T) {
 			want: FileRuleRepository{
 				RepoRules: map[string][]AuthorizationRule{
 					"terrabitz/foo": {
-						{Fields: map[string][]Wildcard{
+						{Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/*"),
 							"environment": NewWildcards("prod"),
 						}},
 					},
 					"terrabitz/bar": {
-						{Fields: map[string][]Wildcard{
+						{Fields: map[GitHubClaimsField][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/foo"),
 							"environment": NewWildcards("dev", "prod"),
 						}},

@@ -96,38 +96,48 @@ type GitHubClaims struct {
 	Iss                  string `json:"iss"`
 }
 
-type AuthorizationRule struct {
-	Fields map[string][]Wildcard
-}
-
-func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) (bool, error) {
+func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) bool {
 	for _, rule := range rules {
-		matches, err := claimMatchesRule(claims, rule)
-		if err != nil {
-			return false, fmt.Errorf("error matching rule: %w", err)
-		}
+		matches := claimMatchesRule(claims, rule)
 
 		if matches {
-			return true, nil
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
-func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) (bool, error) {
+func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) bool {
 	for field, wildcards := range rule.Fields {
-		claimValue, err := getStringValueByJSONTag(claims, field)
-		if err != nil {
-			return false, fmt.Errorf("couldn't match rules: %w", err)
-		}
+		claimValue := claims.GetClaimValue(field)
 
 		if !Any(wildcards, func(wildcard Wildcard) bool {
 			return wildcard.MatchString(claimValue)
 		}) {
-			return false, nil
+			return false
 		}
 	}
 
-	return true, nil
+	return true
+}
+
+func (claims GitHubClaims) GetClaimValue(field GitHubClaimsField) string {
+	claim, _ := getStringValueByJSONTag(claims, string(field))
+	return claim
+}
+
+type GitHubClaimsField string
+
+func NewGitHubClaimsField(s string) (GitHubClaimsField, error) {
+	_, err := getStringValueByJSONTag(GitHubClaims{}, s)
+	if err != nil {
+		return GitHubClaimsField(""), fmt.Errorf("invalid GitHub claim: '%s'", s)
+	}
+
+	return GitHubClaimsField(s), nil
+}
+
+type AuthorizationRule struct {
+	Fields map[GitHubClaimsField][]Wildcard
 }
