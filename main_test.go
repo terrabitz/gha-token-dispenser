@@ -76,9 +76,9 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/foo"},
-							"environment": {"prod"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/foo"),
+							"environment": NewWildcards("prod"),
 						},
 					},
 				},
@@ -91,9 +91,9 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/foo"},
-							"environment": {"dev"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/foo"),
+							"environment": NewWildcards("dev"),
 						},
 					},
 				},
@@ -106,9 +106,9 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/*"},
-							"environment": {"prod"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/*"),
+							"environment": NewWildcards("prod"),
 						},
 					},
 				},
@@ -121,15 +121,15 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/foo"},
-							"environment": {"prod"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/foo"),
+							"environment": NewWildcards("prod"),
 						},
 					},
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/bar"},
-							"environment": {"prod"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/bar"),
+							"environment": NewWildcards("prod"),
 						},
 					},
 				},
@@ -142,15 +142,15 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/bar"},
-							"environment": {"prod"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/bar"),
+							"environment": NewWildcards("prod"),
 						},
 					},
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/foo"},
-							"environment": {"dev"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/foo"),
+							"environment": NewWildcards("dev"),
 						},
 					},
 				},
@@ -163,9 +163,9 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/foo"},
-							"environment": {"prod", "dev"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/foo"),
+							"environment": NewWildcards("prod", "dev"),
 						},
 					},
 				},
@@ -178,9 +178,9 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"sub":         {"repo:example/foo"},
-							"environment": {"stage", "dev"},
+						Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:example/foo"),
+							"environment": NewWildcards("stage", "dev"),
 						},
 					},
 				},
@@ -193,9 +193,9 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 				claims: testClaims,
 				rules: []AuthorizationRule{
 					{
-						Fields: map[string][]string{
-							"asdfasdf":    {"repo:example/*"},
-							"environment": {"prod"},
+						Fields: map[string][]Wildcard{
+							"asdfasdf":    NewWildcards("repo:example/*"),
+							"environment": NewWildcards("prod"),
 						},
 					},
 				},
@@ -218,10 +218,10 @@ func TestClaimMatchesAnyRule(t *testing.T) {
 	}
 }
 
-func Test_matchesWildcard(t *testing.T) {
+func Test_Wildcard_MatchString(t *testing.T) {
 	type args struct {
 		s        string
-		wildcard string
+		wildcard Wildcard
 	}
 	tests := []struct {
 		name string
@@ -232,14 +232,14 @@ func Test_matchesWildcard(t *testing.T) {
 			name: "Matches a basic wildcard",
 			args: args{
 				s:        "foobar",
-				wildcard: "foo*",
+				wildcard: NewWildcard("foo*"),
 			},
 			want: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := matchesWildcard(tt.args.s, tt.args.wildcard); got != tt.want {
+			if got := tt.args.wildcard.MatchString(tt.args.s); got != tt.want {
 				t.Errorf("matchesWildcard() = %v, want %v", got, tt.want)
 			}
 		})
@@ -264,15 +264,15 @@ func TestNewFileRuleRepository(t *testing.T) {
 			want: FileRuleRepository{
 				RepoRules: map[string][]AuthorizationRule{
 					"terrabitz/foo": {
-						{Fields: map[string][]string{
-							"sub":         {"repo:terrabitz/*"},
-							"environment": {"prod"},
+						{Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:terrabitz/*"),
+							"environment": NewWildcards("prod"),
 						}},
 					},
 					"terrabitz/bar": {
-						{Fields: map[string][]string{
-							"sub":         {"repo:terrabitz/foo"},
-							"environment": {"dev", "prod"},
+						{Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:terrabitz/foo"),
+							"environment": NewWildcards("dev", "prod"),
 						}},
 					},
 				},
@@ -286,15 +286,15 @@ func TestNewFileRuleRepository(t *testing.T) {
 			want: FileRuleRepository{
 				RepoRules: map[string][]AuthorizationRule{
 					"terrabitz/foo": {
-						{Fields: map[string][]string{
-							"sub":         {"repo:terrabitz/*"},
-							"environment": {"prod"},
+						{Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:terrabitz/*"),
+							"environment": NewWildcards("prod"),
 						}},
 					},
 					"terrabitz/bar": {
-						{Fields: map[string][]string{
-							"sub":         {"repo:terrabitz/foo"},
-							"environment": {"dev", "prod"},
+						{Fields: map[string][]Wildcard{
+							"sub":         NewWildcards("repo:terrabitz/foo"),
+							"environment": NewWildcards("dev", "prod"),
 						}},
 					},
 				},

@@ -282,7 +282,7 @@ func ParseRepository(orgAndRepo string) (Repository, error) {
 }
 
 type AuthorizationRule struct {
-	Fields map[string][]string
+	Fields map[string][]Wildcard
 }
 
 func ClaimMatchesAnyRule(claims GitHubClaims, rules []AuthorizationRule) (bool, error) {
@@ -307,8 +307,8 @@ func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) (bool, error)
 			return false, fmt.Errorf("couldn't match rules: %w", err)
 		}
 
-		if !Any(wildcards, func(wildcard string) bool {
-			return matchesWildcard(claimValue, wildcard)
+		if !Any(wildcards, func(wildcard Wildcard) bool {
+			return wildcard.MatchString(claimValue)
 		}) {
 			return false, nil
 		}
@@ -343,12 +343,28 @@ func getStringValueByJSONTag(v any, jsonTag string) (string, error) {
 	return "", fmt.Errorf("couldn't find element '%s'", jsonTag)
 }
 
-func matchesWildcard(s, wildcard string) bool {
-	escaped := regexp.QuoteMeta(wildcard)
+type Wildcard struct {
+	*regexp.Regexp
+}
+
+func NewWildcard(s string) Wildcard {
+	escaped := regexp.QuoteMeta(s)
 	expanded := strings.Replace(escaped, "\\*", ".*", -1)
 	anchored := fmt.Sprintf("^%s$", expanded)
 	re, _ := regexp.Compile(anchored)
-	return re.MatchString(s)
+
+	return Wildcard{
+		Regexp: re,
+	}
+}
+
+func NewWildcards(ss ...string) []Wildcard {
+	var wildcards []Wildcard
+	for _, s := range ss {
+		wildcards = append(wildcards, NewWildcard(s))
+	}
+
+	return wildcards
 }
 
 type AuthRuleRepository interface {
@@ -360,9 +376,9 @@ type MemRuleRepository struct{}
 func (_ MemRuleRepository) GetRulesForRepo(_ context.Context, repo Repository) ([]AuthorizationRule, error) {
 	rules := map[string][]AuthorizationRule{
 		"terrabitz/goreleaser-test": {{
-			Fields: map[string][]string{
-				"sub":              {"repo:terrabitz/goreleaser-test:*"},
-				"job_workflow_ref": {"terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"},
+			Fields: map[string][]Wildcard{
+				"sub":              NewWildcards("repo:terrabitz/goreleaser-test:*"),
+				"job_workflow_ref": NewWildcards("terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"),
 			},
 		}},
 	}
@@ -418,9 +434,13 @@ func NewFileRuleRepository(file string) (FileRuleRepository, error) {
 	for repo, rules := range config.RepoRules {
 		var authRules []AuthorizationRule
 		for _, rule := range rules {
-			fields := map[string][]string{}
+			fields := map[string][]Wildcard{}
 			for field, values := range rule.Fields {
-				fields[field] = []string(values)
+				var wildcards []Wildcard
+				for _, value := range values {
+					wildcards = append(wildcards, NewWildcard(value))
+				}
+				fields[field] = wildcards
 			}
 
 			authRules = append(authRules, AuthorizationRule{
