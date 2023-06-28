@@ -68,3 +68,66 @@ func NewWildcards(ss ...string) []Wildcard {
 
 	return wildcards
 }
+
+type GitHubClaims struct {
+	Jti                  string `json:"jti"`
+	Sub                  string `json:"sub"`
+	Environment          string `json:"environment"`
+	Aud                  string `json:"aud"`
+	Ref                  string `json:"ref"`
+	Sha                  string `json:"sha"`
+	Repository           string `json:"repository"`
+	RepositoryOwner      string `json:"repository_owner"`
+	ActorID              string `json:"actor_id"`
+	RepositoryVisibility string `json:"repository_visibility"`
+	RepositoryID         string `json:"repository_id"`
+	RepositoryOwnerID    string `json:"repository_owner_id"`
+	RunID                string `json:"run_id"`
+	RunNumber            string `json:"run_number"`
+	RunAttempt           string `json:"run_attempt"`
+	RunnerEnvironment    string `json:"runner_environment"`
+	Actor                string `json:"actor"`
+	Workflow             string `json:"workflow"`
+	HeadRef              string `json:"head_ref"`
+	BaseRef              string `json:"base_ref"`
+	EventName            string `json:"event_name"`
+	RefType              string `json:"ref_type"`
+	JobWorkflowRef       string `json:"job_workflow_ref"`
+	Iss                  string `json:"iss"`
+}
+
+type AuthorizationRule struct {
+	Fields map[string][]Wildcard
+}
+
+func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) (bool, error) {
+	for _, rule := range rules {
+		matches, err := claimMatchesRule(claims, rule)
+		if err != nil {
+			return false, fmt.Errorf("error matching rule: %w", err)
+		}
+
+		if matches {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) (bool, error) {
+	for field, wildcards := range rule.Fields {
+		claimValue, err := getStringValueByJSONTag(claims, field)
+		if err != nil {
+			return false, fmt.Errorf("couldn't match rules: %w", err)
+		}
+
+		if !Any(wildcards, func(wildcard Wildcard) bool {
+			return wildcard.MatchString(claimValue)
+		}) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}

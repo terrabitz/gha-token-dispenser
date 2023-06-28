@@ -8,11 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"reflect"
 
-	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/google/go-github/v53/github"
 	"github.com/joho/godotenv"
 	cli "github.com/urfave/cli/v2"
 )
@@ -137,6 +134,10 @@ type Server struct {
 	oidcVerifier *oidc.IDTokenVerifier
 }
 
+type AuthRuleRepository interface {
+	GetRulesForRepo(context.Context, Repository) ([]AuthorizationRule, error)
+}
+
 type GetTokenRequest struct {
 	Repo      string `json:"repo,omitempty"`
 	OIDCToken string `json:"token,omitempty"`
@@ -192,135 +193,4 @@ func (srv *Server) GenerateGitHubToken(ctx context.Context, req GetTokenRequest)
 	fmt.Println("Sending install token!")
 
 	return GetTokenResponse{Token: installToken}, nil
-}
-
-func toJson(v any) string {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return string(b)
-}
-
-type GitHubAppClient struct {
-	*github.Client
-}
-
-func NewGitHubAppClient(args Args) (*GitHubAppClient, error) {
-	itr, err := ghinstallation.NewAppsTransportKeyFromFile(http.DefaultTransport, args.AppID, args.PrivateKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get transport key: %w", err)
-	}
-
-	client := github.NewClient(&http.Client{Transport: itr})
-	return &GitHubAppClient{client}, nil
-}
-
-func (ghClient *GitHubAppClient) GetInstallationToken(ctx context.Context, repo Repository) (string, error) {
-	install, _, err := ghClient.Apps.FindRepositoryInstallation(ctx, repo.Owner, repo.Name)
-	if err != nil {
-		return "", fmt.Errorf("couldn't find repo installation: %w", err)
-	}
-
-	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, install.GetID(), &github.InstallationTokenOptions{
-		Repositories: []string{repo.Name},
-		Permissions: &github.InstallationPermissions{
-			Contents: github.String("write"),
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("couldn't create installation token: %w", err)
-	}
-
-	return token.GetToken(), nil
-}
-
-type GitHubClaims struct {
-	Jti                  string `json:"jti"`
-	Sub                  string `json:"sub"`
-	Environment          string `json:"environment"`
-	Aud                  string `json:"aud"`
-	Ref                  string `json:"ref"`
-	Sha                  string `json:"sha"`
-	Repository           string `json:"repository"`
-	RepositoryOwner      string `json:"repository_owner"`
-	ActorID              string `json:"actor_id"`
-	RepositoryVisibility string `json:"repository_visibility"`
-	RepositoryID         string `json:"repository_id"`
-	RepositoryOwnerID    string `json:"repository_owner_id"`
-	RunID                string `json:"run_id"`
-	RunNumber            string `json:"run_number"`
-	RunAttempt           string `json:"run_attempt"`
-	RunnerEnvironment    string `json:"runner_environment"`
-	Actor                string `json:"actor"`
-	Workflow             string `json:"workflow"`
-	HeadRef              string `json:"head_ref"`
-	BaseRef              string `json:"base_ref"`
-	EventName            string `json:"event_name"`
-	RefType              string `json:"ref_type"`
-	JobWorkflowRef       string `json:"job_workflow_ref"`
-	Iss                  string `json:"iss"`
-}
-
-type AuthorizationRule struct {
-	Fields map[string][]Wildcard
-}
-
-func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) (bool, error) {
-	for _, rule := range rules {
-		matches, err := claimMatchesRule(claims, rule)
-		if err != nil {
-			return false, fmt.Errorf("error matching rule: %w", err)
-		}
-
-		if matches {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func claimMatchesRule(claims GitHubClaims, rule AuthorizationRule) (bool, error) {
-	for field, wildcards := range rule.Fields {
-		claimValue, err := getStringValueByJSONTag(claims, field)
-		if err != nil {
-			return false, fmt.Errorf("couldn't match rules: %w", err)
-		}
-
-		if !Any(wildcards, func(wildcard Wildcard) bool {
-			return wildcard.MatchString(claimValue)
-		}) {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-func Any[T any](tt []T, fn func(T) bool) bool {
-	for _, t := range tt {
-		if fn(t) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func getStringValueByJSONTag(v any, jsonTag string) (string, error) {
-	val := reflect.ValueOf(v)
-	st := reflect.TypeOf(v)
-	for i := 0; i < st.NumField(); i++ {
-		field := st.Field(i)
-		if jsonField, ok := field.Tag.Lookup("json"); ok {
-			if jsonField == jsonTag {
-				fieldValue := val.FieldByIndex([]int{i})
-				return fieldValue.String(), nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("couldn't find element '%s'", jsonTag)
-}
-
-type AuthRuleRepository interface {
-	GetRulesForRepo(context.Context, Repository) ([]AuthorizationRule, error)
 }
