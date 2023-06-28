@@ -97,15 +97,10 @@ type GitHubClaims struct {
 }
 
 func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) bool {
-	for _, rule := range rules {
-		matches := claims.MatchesRule(rule)
+	return Any(rules, func(rule AuthorizationRule) bool {
+		return claims.MatchesRule(rule)
+	})
 
-		if matches {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (claims GitHubClaims) MatchesRule(rule AuthorizationRule) bool {
