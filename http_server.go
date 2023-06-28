@@ -13,7 +13,21 @@ type HTTPServer struct {
 
 func NewHTTPServer(srv *Server) *HTTPServer {
 	var mux http.ServeMux
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	httpSrv := &HTTPServer{
+		Server: &http.Server{
+			Addr:    "0.0.0.0:9999",
+			Handler: &mux,
+		},
+		srv: srv,
+	}
+
+	mux.Handle("/", httpSrv.GenerateGitHubToken())
+
+	return httpSrv
+}
+
+func (srv *HTTPServer) GenerateGitHubToken() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 
 		if r.Method != http.MethodPost {
@@ -29,7 +43,7 @@ func NewHTTPServer(srv *Server) *HTTPServer {
 
 		defer r.Body.Close()
 
-		res, err := srv.GenerateGitHubToken(r.Context(), req)
+		res, err := srv.srv.GenerateGitHubToken(r.Context(), req)
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			w.WriteHeader(http.StatusUnauthorized)
@@ -39,14 +53,4 @@ func NewHTTPServer(srv *Server) *HTTPServer {
 		fmt.Fprint(w, res.Token)
 		fmt.Println("Sent install token!")
 	})
-
-	httpSrv := http.Server{
-		Addr:    "0.0.0.0:9999",
-		Handler: &mux,
-	}
-
-	return &HTTPServer{
-		Server: &httpSrv,
-		srv:    srv,
-	}
 }
