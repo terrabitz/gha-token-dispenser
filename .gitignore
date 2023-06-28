@@ -1,5 +1,5 @@
 *.pem
 .env
 *.json
-*.yaml
+/*.yaml
 tmp/
