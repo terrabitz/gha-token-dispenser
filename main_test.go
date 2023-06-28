@@ -278,6 +278,28 @@ func TestNewFileRuleRepository(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Parses a test file",
+			args: args{
+				file: "./testdata/auth_rule_single.yaml",
+			},
+			want: FileRuleRepository{
+				RepoRules: map[string][]AuthorizationRule{
+					"terrabitz/foo": {
+						{Fields: map[string][]string{
+							"sub":         {"repo:terrabitz/*"},
+							"environment": {"prod"},
+						}},
+					},
+					"terrabitz/bar": {
+						{Fields: map[string][]string{
+							"sub":         {"repo:terrabitz/foo"},
+							"environment": {"dev", "prod"},
+						}},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

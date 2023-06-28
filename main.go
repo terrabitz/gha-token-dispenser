@@ -381,8 +381,26 @@ type FileRuleRepository struct {
 
 type FileRuleRepositoryConfig struct {
 	RepoRules map[string][]struct {
-		Fields map[string][]string `yaml:"fields,inline"`
+		Fields map[string]SingleOrMulti `yaml:"fields,inline"`
 	} `yaml:"repo_rules,inline"`
+}
+
+type SingleOrMulti []string
+
+func (a *SingleOrMulti) UnmarshalYAML(value *yaml.Node) error {
+	var multi []string
+	err := value.Decode(&multi)
+	if err != nil {
+		var single string
+		err := value.Decode(&single)
+		if err != nil {
+			return err
+		}
+		*a = []string{single}
+	} else {
+		*a = multi
+	}
+	return nil
 }
 
 func NewFileRuleRepository(file string) (FileRuleRepository, error) {
@@ -400,8 +418,13 @@ func NewFileRuleRepository(file string) (FileRuleRepository, error) {
 	for repo, rules := range config.RepoRules {
 		var authRules []AuthorizationRule
 		for _, rule := range rules {
+			fields := map[string][]string{}
+			for field, values := range rule.Fields {
+				fields[field] = []string(values)
+			}
+
 			authRules = append(authRules, AuthorizationRule{
-				Fields: rule.Fields,
+				Fields: fields,
 			})
 		}
 		frr.RepoRules[repo] = authRules
