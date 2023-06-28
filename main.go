@@ -79,7 +79,7 @@ func run(args Args) error {
 		fmt.Printf("using rules file at '%s'\n", args.RulesFile)
 	}
 
-	srv := Server{
+	srv := TokenService{
 		ghClient:     ghClient,
 		authRules:    authRulesRepo,
 		oidcVerifier: oidcVerifier,
@@ -94,7 +94,7 @@ func run(args Args) error {
 	return nil
 }
 
-type Server struct {
+type TokenService struct {
 	ghClient     *GitHubAppClient
 	authRules    AuthRuleRepository
 	oidcVerifier *oidc.IDTokenVerifier
@@ -113,7 +113,7 @@ type GetTokenResponse struct {
 	Token string `json:"token,omitempty"`
 }
 
-func (srv *Server) GenerateGitHubToken(ctx context.Context, req GetTokenRequest) (GetTokenResponse, error) {
+func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRequest) (GetTokenResponse, error) {
 	targetRepo, err := ParseRepository(req.Repo)
 	if err != nil {
 		return GetTokenResponse{}, fmt.Errorf("couldn't parse repository: %w", err)

@@ -8,17 +8,17 @@ import (
 
 type HTTPServer struct {
 	*http.Server
-	srv *Server
+	tokenSrv *TokenService
 }
 
-func NewHTTPServer(srv *Server) *HTTPServer {
+func NewHTTPServer(srv *TokenService) *HTTPServer {
 	var mux http.ServeMux
 	httpSrv := &HTTPServer{
 		Server: &http.Server{
 			Addr:    "0.0.0.0:9999",
 			Handler: &mux,
 		},
-		srv: srv,
+		tokenSrv: srv,
 	}
 
 	mux.Handle("/token", httpSrv.GenerateGitHubToken())
@@ -43,7 +43,7 @@ func (srv *HTTPServer) GenerateGitHubToken() http.Handler {
 
 		defer r.Body.Close()
 
-		res, err := srv.srv.GenerateGitHubToken(r.Context(), req)
+		res, err := srv.tokenSrv.GenerateGitHubToken(r.Context(), req)
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			w.WriteHeader(http.StatusUnauthorized)
