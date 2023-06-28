@@ -21,7 +21,7 @@ func NewHTTPServer(srv *Server) *HTTPServer {
 		srv: srv,
 	}
 
-	mux.Handle("/", httpSrv.GenerateGitHubToken())
+	mux.Handle("/token", httpSrv.GenerateGitHubToken())
 
 	return httpSrv
 }
