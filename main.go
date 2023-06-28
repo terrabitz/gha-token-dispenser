@@ -175,12 +175,12 @@ func (srv *Server) GenerateGitHubToken(ctx context.Context, req GetTokenRequest)
 		return GetTokenResponse{}, fmt.Errorf("could not get rules for repository: %w", err)
 	}
 
-	authorized, err := ClaimMatchesAnyRule(claims, rules)
+	matchesRule, err := claims.MatchesAnyRule(rules)
 	if err != nil {
 		return GetTokenResponse{}, fmt.Errorf("error while making authorization decision: %w", err)
 	}
 
-	if !authorized {
+	if !matchesRule {
 		return GetTokenResponse{}, fmt.Errorf("caller is not authorized to generate a token for repo %s", req.Repo)
 	}
 
@@ -263,7 +263,7 @@ type AuthorizationRule struct {
 	Fields map[string][]Wildcard
 }
 
-func ClaimMatchesAnyRule(claims GitHubClaims, rules []AuthorizationRule) (bool, error) {
+func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) (bool, error) {
 	for _, rule := range rules {
 		matches, err := claimMatchesRule(claims, rule)
 		if err != nil {
