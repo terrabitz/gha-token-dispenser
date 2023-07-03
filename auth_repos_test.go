@@ -6,6 +6,7 @@ import (
 	"github.com/go-test/deep"
 )
 
+// FIXME add permissions
 func TestNewFileRuleRepository(t *testing.T) {
 	type args struct {
 		file string

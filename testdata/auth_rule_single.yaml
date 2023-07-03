@@ -1,9 +1,13 @@
 terrabitz/foo:
-  - claims:
+  - permissions:
+      contents: read
+    claims:
       sub: repo:terrabitz/*
       environment: prod
 
 terrabitz/bar:
-  - claims:
+  - permissions:
+      contents: write
+    claims:
       sub: repo:terrabitz/foo
       environment: [dev, prod]

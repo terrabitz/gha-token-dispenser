@@ -13,16 +13,18 @@ type SingleOrMulti []string
 func (a *SingleOrMulti) UnmarshalYAML(value *yaml.Node) error {
 	var multi []string
 	err := value.Decode(&multi)
-	if err != nil {
-		var single string
-		err := value.Decode(&single)
-		if err != nil {
-			return err
-		}
-		*a = []string{single}
-	} else {
+	if err == nil {
 		*a = multi
+		return nil
 	}
+
+	var single string
+	if err = value.Decode(&single); err != nil {
+		return err
+	}
+
+	*a = []string{single}
+
 	return nil
 }
 
@@ -96,11 +98,16 @@ type GitHubClaims struct {
 	Iss                  string `json:"iss"`
 }
 
+func (claims GitHubClaims) GetMatchingRules(rules []AuthorizationRule) []AuthorizationRule {
+	return Filter(rules, func(rule AuthorizationRule) bool {
+		return claims.MatchesRule(rule)
+	})
+}
+
 func (claims GitHubClaims) MatchesAnyRule(rules []AuthorizationRule) bool {
 	return Any(rules, func(rule AuthorizationRule) bool {
 		return claims.MatchesRule(rule)
 	})
-
 }
 
 func (claims GitHubClaims) MatchesRule(rule AuthorizationRule) bool {
@@ -120,7 +127,8 @@ func (claims GitHubClaims) GetClaimValue(field GitHubClaimName) string {
 }
 
 type AuthorizationRule struct {
-	Claims map[GitHubClaimName][]Wildcard
+	Claims      map[GitHubClaimName][]Wildcard
+	Permissions PermissionSet
 }
 
 type GitHubClaimName string
@@ -132,4 +140,45 @@ func NewGitHubClaimsField(s string) (GitHubClaimName, error) {
 	}
 
 	return GitHubClaimName(s), nil
+}
+
+type PermissionSet map[string]GitHubAccessLevel
+
+func (ps PermissionSet) GetAccessLevelString(permission string) *string {
+	accessLevel, ok := ps[permission]
+	if !ok {
+		return nil
+	}
+
+	s := accessLevel.String()
+	return &s
+}
+
+func MergePermissions(permSets []PermissionSet) PermissionSet {
+	maxPerms := PermissionSet{}
+
+	for _, permSet := range permSets {
+		for permission, accessLevel := range permSet {
+			if accessLevel.GreaterThan(maxPerms[permission]) {
+				maxPerms[permission] = accessLevel
+			}
+		}
+	}
+
+	return maxPerms
+}
+
+// ENUM(
+//
+//	read=1
+//	write=2
+//	admin=3
+//
+// )
+//
+//go:generate go-enum --marshal
+type GitHubAccessLevel int
+
+func (gal GitHubAccessLevel) GreaterThan(other GitHubAccessLevel) bool {
+	return gal > other
 }

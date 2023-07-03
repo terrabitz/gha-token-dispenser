@@ -17,6 +17,9 @@ func (_ MemRuleRepository) GetRulesForRepo(_ context.Context, repo Repository) (
 				"sub":              NewWildcards("repo:terrabitz/goreleaser-test:*"),
 				"job_workflow_ref": NewWildcards("terrabitz/goreleaser-test/.github/workflows/send-oidc-token.yaml@*"),
 			},
+			Permissions: PermissionSet{
+				"contents": GitHubAccessLevelRead,
+			},
 		}},
 	}
 
@@ -34,7 +37,8 @@ type FileRuleRepository struct {
 
 type FileRuleRepositoryConfig struct {
 	RepoRules map[string][]struct {
-		Claims map[string]SingleOrMulti `yaml:"claims"`
+		Claims      map[string]SingleOrMulti `yaml:"claims"`
+		Permissions PermissionSet            `yaml:"permissions"`
 	} `yaml:"repo_rules,inline"`
 }
 
@@ -69,7 +73,8 @@ func NewFileRuleRepository(file string) (FileRuleRepository, error) {
 			}
 
 			authRules = append(authRules, AuthorizationRule{
-				Claims: claims,
+				Claims:      claims,
+				Permissions: rule.Permissions,
 			})
 		}
 		frr.RepoRules[repo] = authRules

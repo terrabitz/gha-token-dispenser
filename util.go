@@ -26,6 +26,28 @@ func All[T any](tt []T, fn func(T) bool) bool {
 	return true
 }
 
+func Filter[T any](tt []T, fn func(T) bool) []T {
+	var matching []T
+
+	for _, t := range tt {
+		if fn(t) {
+			matching = append(matching, t)
+		}
+	}
+
+	return matching
+}
+
+func Map[T, U any](tt []T, fn func(T) U) []U {
+	var out []U
+
+	for _, t := range tt {
+		out = append(out, fn(t))
+	}
+
+	return out
+}
+
 func Keys[K comparable, V any](m map[K]V) []K {
 	var keys []K
 	for key := range m {

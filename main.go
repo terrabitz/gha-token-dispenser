@@ -105,8 +105,9 @@ type AuthRuleRepository interface {
 }
 
 type GetTokenRequest struct {
-	Repo      string `json:"repo,omitempty"`
-	OIDCToken string `json:"token,omitempty"`
+	Repo        string        `json:"repo"`
+	OIDCToken   string        `json:"token"`
+	Permissions PermissionSet `json:"permissions"`
 }
 
 type GetTokenResponse struct {
@@ -116,7 +117,11 @@ type GetTokenResponse struct {
 func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRequest) (GetTokenResponse, error) {
 	targetRepo, err := ParseRepository(req.Repo)
 	if err != nil {
-		return GetTokenResponse{}, fmt.Errorf("couldn't parse repository: %w", err)
+		return GetTokenResponse{}, fmt.Errorf("invalid repository: %w", err)
+	}
+
+	if len(req.Permissions) == 0 {
+		return GetTokenResponse{}, errors.New("permissions must be included")
 	}
 
 	idToken, err := srv.oidcVerifier.Verify(ctx, req.OIDCToken)
@@ -146,7 +151,22 @@ func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRe
 		return GetTokenResponse{}, fmt.Errorf("caller is not authorized to generate a token for repo %s", req.Repo)
 	}
 
-	installToken, err := srv.ghClient.GetInstallationToken(ctx, targetRepo)
+	matchingRules := claims.GetMatchingRules(rules)
+	perms := Map(matchingRules, func(rule AuthorizationRule) PermissionSet { return rule.Permissions })
+	maxPerms := MergePermissions(perms)
+
+	for requestedPerm, requestedAccessLevel := range req.Permissions {
+		maxAccessLevel, ok := maxPerms[requestedPerm]
+		if !ok {
+			return GetTokenResponse{}, fmt.Errorf("permission '%s' is not allowed ", requestedPerm)
+		}
+
+		if requestedAccessLevel.GreaterThan(maxAccessLevel) {
+			return GetTokenResponse{}, fmt.Errorf("permission '%s' may only be requested at access level '%s' and below", requestedPerm, maxAccessLevel)
+		}
+	}
+
+	installToken, err := srv.ghClient.GetInstallationToken(ctx, targetRepo, req.Permissions)
 	if err != nil {
 		return GetTokenResponse{}, fmt.Errorf("couldn't get install token: %w", err)
 	}
