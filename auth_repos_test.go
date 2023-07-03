@@ -24,13 +24,13 @@ func TestNewFileRuleRepository(t *testing.T) {
 			want: FileRuleRepository{
 				RepoRules: map[string][]AuthorizationRule{
 					"terrabitz/foo": {
-						{Fields: map[GitHubClaimsField][]Wildcard{
+						{Claims: map[GitHubClaimName][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/*"),
 							"environment": NewWildcards("prod"),
 						}},
 					},
 					"terrabitz/bar": {
-						{Fields: map[GitHubClaimsField][]Wildcard{
+						{Claims: map[GitHubClaimName][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/foo"),
 							"environment": NewWildcards("dev", "prod"),
 						}},
@@ -39,20 +39,20 @@ func TestNewFileRuleRepository(t *testing.T) {
 			},
 		},
 		{
-			name: "Parses a test file",
+			name: "Parses a test file using single-string rules",
 			args: args{
 				file: "./testdata/auth_rule_single.yaml",
 			},
 			want: FileRuleRepository{
 				RepoRules: map[string][]AuthorizationRule{
 					"terrabitz/foo": {
-						{Fields: map[GitHubClaimsField][]Wildcard{
+						{Claims: map[GitHubClaimName][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/*"),
 							"environment": NewWildcards("prod"),
 						}},
 					},
 					"terrabitz/bar": {
-						{Fields: map[GitHubClaimsField][]Wildcard{
+						{Claims: map[GitHubClaimName][]Wildcard{
 							"sub":         NewWildcards("repo:terrabitz/foo"),
 							"environment": NewWildcards("dev", "prod"),
 						}},

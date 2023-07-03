@@ -1,7 +1,9 @@
 terrabitz/foo:
-  - sub: repo:terrabitz/*
-    environment: prod
+  - claims:
+      sub: repo:terrabitz/*
+      environment: prod
 
 terrabitz/bar:
-  - sub: repo:terrabitz/foo
-    environment: [dev, prod]
+  - claims:
+      sub: repo:terrabitz/foo
+      environment: [dev, prod]
