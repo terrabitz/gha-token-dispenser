@@ -115,15 +115,6 @@ type GetTokenResponse struct {
 }
 
 func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRequest) (GetTokenResponse, error) {
-	targetRepo, err := ParseRepository(req.Repo)
-	if err != nil {
-		return GetTokenResponse{}, fmt.Errorf("invalid repository: %w", err)
-	}
-
-	if len(req.Permissions) == 0 {
-		return GetTokenResponse{}, errors.New("permissions must be included")
-	}
-
 	idToken, err := srv.oidcVerifier.Verify(ctx, req.OIDCToken)
 	if err != nil {
 		return GetTokenResponse{}, fmt.Errorf("invalid token: %w", err)
@@ -131,6 +122,15 @@ func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRe
 
 	if idToken.Issuer != githubTokenIssuer {
 		return GetTokenResponse{}, errors.New("issuer isn't GitHub Actions")
+	}
+
+	targetRepo, err := ParseRepository(req.Repo)
+	if err != nil {
+		return GetTokenResponse{}, fmt.Errorf("invalid repository: %w", err)
+	}
+
+	if len(req.Permissions) == 0 {
+		return GetTokenResponse{}, errors.New("permissions must be included")
 	}
 
 	var claims GitHubClaims
