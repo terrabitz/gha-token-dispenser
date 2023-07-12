@@ -117,7 +117,7 @@ type GetTokenResponse struct {
 func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRequest) (GetTokenResponse, error) {
 	idToken, err := srv.oidcVerifier.Verify(ctx, req.OIDCToken)
 	if err != nil {
-		return GetTokenResponse{}, fmt.Errorf("invalid token: %w", err)
+		return GetTokenResponse{}, ErrInvalidToken.New(WithWrappedError(err))
 	}
 
 	if idToken.Issuer != githubTokenIssuer {
@@ -162,7 +162,10 @@ func (srv *TokenService) GenerateGitHubToken(ctx context.Context, req GetTokenRe
 		}
 
 		if requestedAccessLevel.GreaterThan(maxAccessLevel) {
-			return GetTokenResponse{}, fmt.Errorf("permission '%s' may only be requested at access level '%s' and below", requestedPerm, maxAccessLevel)
+			err := ErrInvalidPermissions.New(
+				WithExternalMessage(fmt.Sprintf("permission '%s' may only be requested at access level '%s' and below", requestedPerm, maxAccessLevel)),
+			)
+			return GetTokenResponse{}, err
 		}
 	}
 

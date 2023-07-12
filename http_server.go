@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -45,12 +46,29 @@ func (srv *HTTPServer) GenerateGitHubToken() http.Handler {
 
 		res, err := srv.tokenSrv.GenerateGitHubToken(r.Context(), req)
 		if err != nil {
+			res := ErrorMessage{
+				Error: "something went wrong; please open a ticket at https://github.com/terrabitz/gha-token-dispenser",
+				Code:  http.StatusInternalServerError,
+			}
+
+			var appError *Error
+			if errors.As(err, &appError) {
+				res.Error = appError.ExternalMessage
+				res.Code = appError.HTTPStatusCode
+			}
+
 			fmt.Printf("%v\n", err)
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(res.Code)
+			_ = json.NewEncoder(w).Encode(res)
 			return
 		}
 
 		fmt.Fprint(w, res.Token)
 		fmt.Println("Sent install token!")
 	})
+}
+
+type ErrorMessage struct {
+	Error string `json:"error,omitempty"`
+	Code  int    `json:"code,omitempty"`
 }
